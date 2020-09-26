@@ -6,7 +6,10 @@ import data
 
 @st.cache(ttl=3600)
 def covid():
-    return data.covid()
+    df = data.covid()
+    for int_col in ("Confirmed", "Deaths", "Recovered", "Active"):
+        df[int_col] = df[int_col].fillna(0).astype("int")
+    return df
 
 
 @st.cache
@@ -20,16 +23,20 @@ def population():
 
 df = covid()
 
-world_wide_deaths = int(
-    df[(df.Last_Update == "2020-09-23 04:23:40")]
-    .sort_values("Last_Update", ascending=False)
-    .Deaths.sum()
-)
-st.write(f"Worldwide deaths: {world_wide_deaths:,}")
-st.markdown(
-    f"""
-|Deaths|
-|---|
-|{world_wide_deaths:,}|
+latest = max(df.Last_Update)
+ldf = df[(df.Last_Update == latest)]
+ldf
+
+confirmed = ldf.Confirmed.sum()
+recovered = ldf.Recovered.sum()
+deaths = ldf.Deaths.sum()
+
+f"""
+{latest}
+
+## Worldwide
+
+| Total cases   | Recovered     | Deaths     |
+| ---           | ---           | ---        |
+| {confirmed:,} | {recovered:,} | {deaths:,} |
 """
-)
