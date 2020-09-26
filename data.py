@@ -30,7 +30,10 @@ os.makedirs(DATA_DIR, exist_ok=True)
 def covid():
     if os.path.exists(os.path.join(DATA_DIR, COVID_DIR)):
         print(f"Pulling CSSEGISandData/COVID-19.git")
-        subprocess.call(["git", "pull"], cwd=os.path.join(DATA_DIR, COVID_DIR))
+        subprocess.call(
+            ["git", "pull", "--rebase", "origin", "master"],
+            cwd=os.path.join(DATA_DIR, COVID_DIR),
+        )
     else:
         print(f"Cloning CSSEGISandData/COVID-19.git to {DATA_DIR}")
         subprocess.call(["git", "clone", COVID_REPO, COVID_DIR], cwd=DATA_DIR)
