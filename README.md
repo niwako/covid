@@ -22,12 +22,6 @@
     $ pip3 install -r requirements.txt
     ```
 
-1.  Run the update script to download the latest covid data.
-
-    ```console
-    $ ./update.py
-    ```
-
 1.  Launch streamlit and load the dashboard.
 
     ```console
