@@ -27,25 +27,32 @@ COVID_COLUMN_REMAP = {
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
+def read_covid_csv(csv_file):
+    df = pd.read_csv(csv_file)
+    df = df.rename(COVID_COLUMN_REMAP, axis=1)
+    df["Last_Update"] = pd.to_datetime(df.Last_Update)
+    df["File_Date"] = pd.to_datetime(os.path.split(csv_file)[-1].split(".")[0])
+    return df
+
+
 def covid():
     if os.path.exists(os.path.join(DATA_DIR, COVID_DIR)):
-        print(f"Pulling CSSEGISandData/COVID-19.git")
         subprocess.call(
             ["git", "pull", "--rebase", "origin", "master"],
             cwd=os.path.join(DATA_DIR, COVID_DIR),
         )
     else:
-        print(f"Cloning CSSEGISandData/COVID-19.git to {DATA_DIR}")
         subprocess.call(["git", "clone", COVID_REPO, COVID_DIR], cwd=DATA_DIR)
 
     csv_files = glob.glob(
         os.path.join(DATA_DIR, COVID_DIR, COVID_DAILY_REPORTS_DIR, "*.csv")
     )
-    dfs = [
-        pd.read_csv(csv_file).rename(COVID_COLUMN_REMAP, axis=1)
-        for csv_file in csv_files
-    ]
-    return pd.concat(dfs)
+    dfs = [read_covid_csv(csv_file) for csv_file in csv_files]
+
+    df = pd.concat(dfs)
+    df = df.sort_values(["File_Date", "Country_Region", "Province_State"])
+    df = df.reset_index(drop=True)
+    return df
 
 
 def population():
@@ -55,4 +62,5 @@ def population():
     subprocess.call(["unzip", "-u", POP_ZIP], cwd=POP_DIR)
 
     csv_file = glob.glob(os.path.join(POP_DIR, "API_SP.POP.TOTL*.csv"))[0]
-    return pd.read_csv(csv_file, skiprows=2, header=1)
+    df = pd.read_csv(csv_file, skiprows=2, header=1)
+    return df[df.columns[:-1]]
