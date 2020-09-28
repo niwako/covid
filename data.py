@@ -55,12 +55,15 @@ def covid():
     return df
 
 
-def population():
-    subprocess.call(["rm", "-rf", POP_DIR])
-    os.makedirs(POP_DIR, exist_ok=True)
-    subprocess.call(["curl", POP_URL, "-o", POP_ZIP], cwd=POP_DIR)
-    subprocess.call(["unzip", "-u", POP_ZIP], cwd=POP_DIR)
+def population_csv_files():
+    return glob.glob(os.path.join(POP_DIR, "API_SP.POP.TOTL*.csv"))
 
-    csv_file = glob.glob(os.path.join(POP_DIR, "API_SP.POP.TOTL*.csv"))[0]
-    df = pd.read_csv(csv_file, skiprows=2, header=1)
+
+def population():
+    if len(population_csv_files()) == 0:
+        os.makedirs(POP_DIR, exist_ok=True)
+        subprocess.call(["curl", POP_URL, "-o", POP_ZIP], cwd=POP_DIR)
+        subprocess.call(["unzip", "-u", POP_ZIP], cwd=POP_DIR)
+
+    df = pd.read_csv(population_csv_files()[0], skiprows=2, header=1)
     return df[df.columns[:-1]]
