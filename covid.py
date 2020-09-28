@@ -4,22 +4,16 @@ import pandas as pd
 import data
 
 
+INTEGER_COLUMNS = ("confirmed", "deaths", "recovered", "active")
+
+
 @st.cache(ttl=3600)
 def covid():
-    return data.covid()
-
-
-@st.cache
-def population():
-    return data.population()
-
-
-@st.cache(ttl=3600)
-def merge():
-    cdf = covid()
-    for int_col in ("Confirmed", "Deaths", "Recovered", "Active"):
-        cdf[int_col] = cdf[int_col].fillna(0).astype("int")
-    cdf["Country_Region"] = cdf["Country_Region"].replace(
+    df = data.covid()
+    df.columns = [s.lower() for s in df.columns]
+    for int_col in INTEGER_COLUMNS:
+        df[int_col] = df[int_col].fillna(0).astype("int")
+    df["country_region"] = df["country_region"].replace(
         {
             "Bahamas, The": "Bahamas",
             "Burma": "Myanmar",
@@ -42,10 +36,15 @@ def merge():
             "Viet Nam": "Vietnam",
         }
     )
+    return df
 
-    pdf = population()
-    pdf = pdf[["Country Name", "2019"]]
-    pdf["Country Name"] = pdf["Country Name"].replace(
+
+@st.cache
+def population():
+    df = data.population()
+    df = df.rename({"Country Name": "country_region", "2019": "population"}, axis=1)
+    df = df[["country_region", "population"]]
+    df["country_region"] = df["country_region"].replace(
         {
             "Bahamas, The": "Bahamas",
             "Brunei Darussalam": "Brunei",
@@ -71,24 +70,33 @@ def merge():
             "Yemen, Rep.": "Yemen",
         }
     )
-    pdf = pdf.rename({"Country Name": "Country_Region", "2019": "Population"}, axis=1)
-    df = pd.merge(cdf, pdf, how="inner", on="Country_Region")
     return df
 
+
+def covid_by_country(cdf, pdf):
+    wdf = cdf.groupby(["country_region", "file_date"])[INTEGER_COLUMNS].sum()
+    wdf = wdf.reset_index()
+    wdf = pd.merge(wdf, pdf, on="country_region")
+    return wdf
+
+
+cdf = covid()
+pdf = population()
+wdf = covid_by_country(cdf, pdf)
 
 """
 # Covid Data
 """
 
-df = merge()
+wdf
 
-latest = max(df.Last_Update)
-ldf = df[(df.Last_Update == latest)]
+latest = max(cdf.last_update)
+ldf = cdf[(cdf.last_update == latest)]
 ldf
 
-confirmed = ldf.Confirmed.sum()
-recovered = ldf.Recovered.sum()
-deaths = ldf.Deaths.sum()
+confirmed = ldf.confirmed.sum()
+recovered = ldf.recovered.sum()
+deaths = ldf.deaths.sum()
 
 f"""
 {latest}

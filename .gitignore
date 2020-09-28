@@ -1,6 +1,9 @@
 # Generated data
 data/
 
+# Jupyter notebooks
+*.ipynb
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
