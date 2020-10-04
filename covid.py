@@ -1,15 +1,15 @@
+import humanize
 import pandas as pd
 import streamlit as st
 
-import humanize
-import data
+import preprocess
 
 INTEGER_COLUMNS = ["confirmed", "deaths", "recovered", "active"]
 
 
 @st.cache(ttl=3600)
 def covid():
-    df = data.covid()
+    df = preprocess.covid()
     df.columns = [s.lower() for s in df.columns]
     for int_col in INTEGER_COLUMNS:
         df[int_col] = df[int_col].fillna(0).astype("int")
@@ -41,7 +41,7 @@ def covid():
 
 @st.cache
 def population():
-    df = data.population()
+    df = preprocess.population()
     df = df.rename({"Country Name": "country_region", "2019": "population"}, axis=1)
     df = df[["country_region", "population"]]
     df["country_region"] = df["country_region"].replace(
