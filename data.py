@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
+import datetime
 import glob
 import os
 import subprocess
 
 import pandas as pd
-
 
 DATA_DIR = "data"
 
@@ -27,6 +27,27 @@ COVID_COLUMN_REMAP = {
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
+def update_covid_repo():
+    now = datetime.datetime.now()
+    last_update_file = os.path.join(DATA_DIR, "covid.last_update")
+    if os.path.exists(last_update_file):
+        with open(last_update_file, "r") as fp:
+            last_update = datetime.datetime.fromisoformat(fp.read())
+        if now - last_update < datetime.timedelta(seconds=3600):
+            return
+
+    if os.path.exists(os.path.join(DATA_DIR, COVID_DIR)):
+        subprocess.call(
+            ["git", "pull", "--rebase", "origin", "master"],
+            cwd=os.path.join(DATA_DIR, COVID_DIR),
+        )
+    else:
+        subprocess.call(["git", "clone", COVID_REPO, COVID_DIR], cwd=DATA_DIR)
+
+    with open(last_update_file, "w") as fp:
+        fp.write(str(now))
+
+
 def read_covid_csv(csv_file):
     df = pd.read_csv(csv_file)
     df = df.rename(COVID_COLUMN_REMAP, axis=1)
@@ -36,14 +57,7 @@ def read_covid_csv(csv_file):
 
 
 def covid():
-    if os.path.exists(os.path.join(DATA_DIR, COVID_DIR)):
-        subprocess.call(
-            ["git", "pull", "--rebase", "origin", "master"],
-            cwd=os.path.join(DATA_DIR, COVID_DIR),
-        )
-    else:
-        subprocess.call(["git", "clone", COVID_REPO, COVID_DIR], cwd=DATA_DIR)
-
+    update_covid_repo()
     csv_files = glob.glob(
         os.path.join(DATA_DIR, COVID_DIR, COVID_DAILY_REPORTS_DIR, "*.csv")
     )
@@ -67,3 +81,7 @@ def population():
 
     df = pd.read_csv(population_csv_files()[0], skiprows=2, header=1)
     return df[df.columns[:-1]]
+
+
+if __name__ == "__main__":
+    update_covid_repo()

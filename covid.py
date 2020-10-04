@@ -1,10 +1,10 @@
-import streamlit as st
-import numpy as np
 import pandas as pd
+import streamlit as st
+
+import humanize
 import data
 
-
-INTEGER_COLUMNS = ("confirmed", "deaths", "recovered", "active")
+INTEGER_COLUMNS = ["confirmed", "deaths", "recovered", "active"]
 
 
 @st.cache(ttl=3600)
@@ -88,18 +88,15 @@ wdf = covid_by_country(cdf, pdf)
 # Covid Data
 """
 
-wdf
-
 latest = max(cdf.last_update)
 ldf = cdf[(cdf.last_update == latest)]
-ldf
 
 confirmed = ldf.confirmed.sum()
 recovered = ldf.recovered.sum()
 deaths = ldf.deaths.sum()
 
 f"""
-{latest}
+Last updated {humanize.naturaltime(latest)}.
 
 ## Worldwide
 

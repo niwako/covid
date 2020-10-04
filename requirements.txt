@@ -1,4 +1,5 @@
 black
+humanize
 matplotlib
 pandas
 streamlit
