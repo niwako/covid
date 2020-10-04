@@ -18,15 +18,15 @@ COVID_DAILY_REPORTS_DIR = "csse_covid_19_data/csse_covid_19_daily_reports"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
-def covid_update():
+def covid_update(force=False, timeout=5400):
     now = datetime.datetime.now()
     state_file = os.path.join(DATA_DIR, COVID_STATE_FILE)
 
     if os.path.exists(os.path.join(DATA_DIR, COVID_DIR)):
-        if os.path.exists(state_file):
+        if not force and os.path.exists(state_file):
             with open(state_file, "r") as fp:
                 last_update = datetime.datetime.fromisoformat(fp.read())
-            if now - last_update < datetime.timedelta(seconds=3600):
+            if now - last_update < datetime.timedelta(seconds=timeout):
                 return
 
         subprocess.call(
@@ -63,4 +63,4 @@ def population_csv_file():
 
 
 if __name__ == "__main__":
-    covid_update()
+    covid_update(force=True)
