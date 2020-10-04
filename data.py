@@ -99,6 +99,7 @@ def population():
     return df
 
 
+@st.cache(ttl=3600)
 def covid_by_country():
     cdf = covid()
     pdf = population()
