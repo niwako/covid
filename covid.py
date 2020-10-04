@@ -5,18 +5,9 @@ import streamlit as st
 import data
 
 
-def covid_by_country(cdf, pdf):
-    wdf = cdf.groupby(["country_region", "file_date"])[data.INTEGER_COLUMNS].sum()
-    wdf = wdf.reset_index()
-    wdf = pd.merge(wdf, pdf, on="country_region")
-    return wdf
-
-
 cdf = data.covid()
 pdf = data.population()
-wdf = covid_by_country(cdf, pdf)
-
-st.dataframe(wdf.head())
+wdf = data.covid_by_country()
 
 """
 # Covid Data

@@ -97,3 +97,12 @@ def population():
         }
     )
     return df
+
+
+def covid_by_country():
+    cdf = covid()
+    pdf = population()
+    wdf = cdf.groupby(["country_region", "file_date"])[INTEGER_COLUMNS].sum()
+    wdf = wdf.reset_index()
+    wdf = pd.merge(wdf, pdf, on="country_region")
+    return wdf
