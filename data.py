@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
 import os
 
 import pandas as pd
+import requests
 import streamlit as st
 
 import fetch
@@ -18,6 +18,17 @@ COVID_COLUMN_REMAP = {
 }
 
 
+def cache(*args, **kwargs):
+    def decorator(func):
+        try:
+            __IPYTHON__  # type: ignore
+            return func
+        except NameError:
+            return st.cache(func, *args, **kwargs)
+
+    return decorator
+
+
 def read_covid_csv(csv_file):
     df = pd.read_csv(csv_file)
     df = df.rename(COVID_COLUMN_REMAP, axis=1)
@@ -26,7 +37,7 @@ def read_covid_csv(csv_file):
     return df
 
 
-@st.cache(ttl=3600)
+@cache(ttl=3600)
 def covid():
     fetch.covid_update()
     dfs = [read_covid_csv(csv_file) for csv_file in fetch.covid_csv_files()]
@@ -46,6 +57,7 @@ def covid():
             "Gambia, The": "Gambia",
             "Hong Kong SAR": "Hong Kong",
             "Iran (Islamic Republic of)": "Iran",
+            "Ivory Coast": "Cote d'Ivoire",
             "Korea, South": "South Korea",
             "Macao SAR": "Macau",
             "Mainland China": "China",
@@ -55,16 +67,19 @@ def covid():
             "Republic of Moldova": "Moldova",
             "Republic of the Congo": "Congo (Brazzaville)",
             "Russian Federation": "Russia",
+            "St. Martin": "Saint Martin",
+            "Taiwan*": "Taiwan",
             "The Bahamas": "Bahamas",
             "The Gambia": "Gambia",
             "UK": "United Kingdom",
+            "US": "United States",
             "Viet Nam": "Vietnam",
         }
     )
     return df
 
 
-@st.cache
+@cache()
 def population():
     df = pd.read_csv(fetch.population_csv_file(), skiprows=2, header=1)
     df = df[df.columns[:-1]]
@@ -88,22 +103,63 @@ def population():
             "Russian Federation": "Russia",
             "St. Kitts and Nevis": "Saint Kitts and Nevis",
             "St. Lucia": "Saint Lucia",
+            "St. Martin (French part)": "Saint Martin",
             "St. Vincent and the Grenadines": "Saint Vincent and the Grenadines",
             "Slovak Republic": "Slovakia",
             "Syrian Arab Republic": "Syria",
-            "United States": "US",
             "Venezuela, RB": "Venezuela",
+            "Viet Nam": "Vietnam",
             "Yemen, Rep.": "Yemen",
         }
     )
     return df
 
 
-@st.cache(ttl=3600)
+@cache()
+def flags():
+    resp = requests.get(
+        "https://raw.githubusercontent.com/hjnilsson/country-flags/master/countries.json"
+    )
+    df = pd.DataFrame(resp.json().items(), columns=["iso_3361", "country_region"])
+    df = df[["country_region", "iso_3361"]]
+    df["country_region"] = df["country_region"].replace(
+        {
+            "Bolivia, Plurinational State of": "Bolivia",
+            "Brunei Darussalam": "Brunei",
+            "Cape Verde": "Cabo Verde",
+            "Congo": "Congo (Brazzaville)",
+            "Congo, the Democratic Republic of the": "Congo (Kinshasa)",
+            "Côte d'Ivoire": "Cote d'Ivoire",
+            "Curaçao": "Curacao",
+            "Holy See (Vatican City State)": "Holy See",
+            "Iran, Islamic Republic of": "Iran",
+            "Korea, Republic of": "South Korea",
+            "Lao People's Democratic Republic": "Laos",
+            "Macao": "Macau",
+            "Macedonia, the former Yugoslav Republic of": "North Macedonia",
+            "Moldova, Republic of": "Moldova",
+            "Russian Federation": "Russia",
+            "Saint Barthélemy": "Saint Barthelemy",
+            "Syrian Arab Republic": "Syria",
+            "Swaziland": "Eswatini",
+            "Tanzania, United Republic of": "Tanzania",
+            "Venezuela, Bolivarian Republic of": "Venezuela",
+        }
+    )
+    return df
+
+
+def flag_url(country_code):
+    return f"https://raw.githubusercontent.com/hjnilsson/country-flags/master/svg/{country_code.lower()}.svg"
+
+
+@cache(ttl=3600)
 def covid_by_country():
     cdf = covid()
     pdf = population()
+    fdf = flags()
     wdf = cdf.groupby(["country_region", "file_date"])[INTEGER_COLUMNS].sum()
     wdf = wdf.reset_index()
     wdf = pd.merge(wdf, pdf, on="country_region")
+    wdf = pd.merge(wdf, fdf, on="country_region")
     return wdf
