@@ -24,7 +24,7 @@ def read_covid_csv(csv_file):
 
 
 def covid():
-    data.update_covid_repo()
+    data.covid_update()
     dfs = [read_covid_csv(csv_file) for csv_file in data.covid_csv_files()]
 
     df = pd.concat(dfs)
@@ -34,5 +34,5 @@ def covid():
 
 
 def population():
-    df = pd.read_csv(data.population_csv_files()[0], skiprows=2, header=1)
+    df = pd.read_csv(data.population_csv_file(), skiprows=2, header=1)
     return df[df.columns[:-1]]
