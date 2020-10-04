@@ -1,20 +1,13 @@
 #!/usr/bin/env python3
-import glob
 import os
-import subprocess
 
 import pandas as pd
+import streamlit as st
 
+import fetch
 
-DATA_DIR = "data"
+INTEGER_COLUMNS = ["confirmed", "deaths", "recovered", "active"]
 
-POP_DIR = os.path.join(DATA_DIR, "population")
-POP_ZIP = "population.zip"
-POP_URL = "http://api.worldbank.org/v2/en/indicator/SP.POP.TOTL?downloadformat=csv"
-
-COVID_DIR = "covid"
-COVID_REPO = "https://github.com/CSSEGISandData/COVID-19.git"
-COVID_DAILY_REPORTS_DIR = "csse_covid_19_data/csse_covid_19_daily_reports"
 COVID_COLUMN_REMAP = {
     "Province/State": "Province_State",
     "Country/Region": "Country_Region",
@@ -23,8 +16,6 @@ COVID_COLUMN_REMAP = {
     "Long_": "Longitude",
     "Case-Fatality_Ratio": "Case_Fatality_Ratio",
 }
-
-os.makedirs(DATA_DIR, exist_ok=True)
 
 
 def read_covid_csv(csv_file):
@@ -35,35 +26,84 @@ def read_covid_csv(csv_file):
     return df
 
 
+@st.cache(ttl=3600)
 def covid():
-    if os.path.exists(os.path.join(DATA_DIR, COVID_DIR)):
-        subprocess.call(
-            ["git", "pull", "--rebase", "origin", "master"],
-            cwd=os.path.join(DATA_DIR, COVID_DIR),
-        )
-    else:
-        subprocess.call(["git", "clone", COVID_REPO, COVID_DIR], cwd=DATA_DIR)
-
-    csv_files = glob.glob(
-        os.path.join(DATA_DIR, COVID_DIR, COVID_DAILY_REPORTS_DIR, "*.csv")
-    )
-    dfs = [read_covid_csv(csv_file) for csv_file in csv_files]
+    fetch.covid_update()
+    dfs = [read_covid_csv(csv_file) for csv_file in fetch.covid_csv_files()]
 
     df = pd.concat(dfs)
     df = df.sort_values(["File_Date", "Country_Region", "Province_State"])
     df = df.reset_index(drop=True)
+
+    df.columns = [s.lower() for s in df.columns]
+    for int_col in INTEGER_COLUMNS:
+        df[int_col] = df[int_col].fillna(0).astype("int")
+    df["country_region"] = df["country_region"].replace(
+        {
+            "Bahamas, The": "Bahamas",
+            "Burma": "Myanmar",
+            "Czech Republic": "Czechia",
+            "Gambia, The": "Gambia",
+            "Hong Kong SAR": "Hong Kong",
+            "Iran (Islamic Republic of)": "Iran",
+            "Korea, South": "South Korea",
+            "Macao SAR": "Macau",
+            "Mainland China": "China",
+            "North Ireland": "Ireland",
+            "Republic of Ireland": "Ireland",
+            "Republic of Korea": "South Korea",
+            "Republic of Moldova": "Moldova",
+            "Republic of the Congo": "Congo (Brazzaville)",
+            "Russian Federation": "Russia",
+            "The Bahamas": "Bahamas",
+            "The Gambia": "Gambia",
+            "UK": "United Kingdom",
+            "Viet Nam": "Vietnam",
+        }
+    )
     return df
 
 
-def population_csv_files():
-    return glob.glob(os.path.join(POP_DIR, "API_SP.POP.TOTL*.csv"))
-
-
+@st.cache
 def population():
-    if len(population_csv_files()) == 0:
-        os.makedirs(POP_DIR, exist_ok=True)
-        subprocess.call(["curl", POP_URL, "-o", POP_ZIP], cwd=POP_DIR)
-        subprocess.call(["unzip", "-u", POP_ZIP], cwd=POP_DIR)
+    df = pd.read_csv(fetch.population_csv_file(), skiprows=2, header=1)
+    df = df[df.columns[:-1]]
+    df = df.rename({"Country Name": "country_region", "2019": "population"}, axis=1)
+    df = df[["country_region", "population"]]
+    df["country_region"] = df["country_region"].replace(
+        {
+            "Bahamas, The": "Bahamas",
+            "Brunei Darussalam": "Brunei",
+            "Congo, Rep.": "Congo (Brazzaville)",
+            "Congo, Dem. Rep.": "Congo (Kinshasa)",
+            "Czech Republic": "Czechia",
+            "Egypt, Arab Rep.": "Egypt",
+            "Gambia, The": "Gambia",
+            "Hong Kong SAR, China": "Hong Kong",
+            "Iran, Islamic Rep.": "Iran",
+            "Korea, Rep.": "South Korea",
+            "Kyrgyz Republic": "Kyrgyzstan",
+            "Lao PDR": "Laos",
+            "Macao SAR, China": "Macau",
+            "Russian Federation": "Russia",
+            "St. Kitts and Nevis": "Saint Kitts and Nevis",
+            "St. Lucia": "Saint Lucia",
+            "St. Vincent and the Grenadines": "Saint Vincent and the Grenadines",
+            "Slovak Republic": "Slovakia",
+            "Syrian Arab Republic": "Syria",
+            "United States": "US",
+            "Venezuela, RB": "Venezuela",
+            "Yemen, Rep.": "Yemen",
+        }
+    )
+    return df
 
-    df = pd.read_csv(population_csv_files()[0], skiprows=2, header=1)
-    return df[df.columns[:-1]]
+
+@st.cache(ttl=3600)
+def covid_by_country():
+    cdf = covid()
+    pdf = population()
+    wdf = cdf.groupby(["country_region", "file_date"])[INTEGER_COLUMNS].sum()
+    wdf = wdf.reset_index()
+    wdf = pd.merge(wdf, pdf, on="country_region")
+    return wdf
