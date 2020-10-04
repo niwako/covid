@@ -120,8 +120,8 @@ def flags():
     resp = requests.get(
         "https://raw.githubusercontent.com/hjnilsson/country-flags/master/countries.json"
     )
-    df = pd.DataFrame(resp.json().items(), columns=["iso_3361", "country_region"])
-    df = df[["country_region", "iso_3361"]]
+    df = pd.DataFrame(resp.json().items(), columns=["iso_3166", "country_region"])
+    df = df[["country_region", "iso_3166"]]
     df["country_region"] = df["country_region"].replace(
         {
             "Bolivia, Plurinational State of": "Bolivia",
@@ -155,11 +155,11 @@ def flag_url(country_code):
 
 @cache(ttl=3600)
 def covid_by_country():
-    cdf = covid()
-    pdf = population()
-    fdf = flags()
-    wdf = cdf.groupby(["country_region", "file_date"])[INTEGER_COLUMNS].sum()
-    wdf = wdf.reset_index()
-    wdf = pd.merge(wdf, pdf, on="country_region")
-    wdf = pd.merge(wdf, fdf, on="country_region")
-    return wdf
+    covid_df = covid()
+    pop_df = population()
+    flags_df = flags()
+    df = covid_df.groupby(["country_region", "file_date"])[INTEGER_COLUMNS].sum()
+    df = df.reset_index()
+    df = pd.merge(df, pop_df, on="country_region")
+    df = pd.merge(df, flags_df, on="country_region")
+    return df
