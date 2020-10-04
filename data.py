@@ -11,6 +11,7 @@ POP_ZIP = "population.zip"
 POP_URL = "http://api.worldbank.org/v2/en/indicator/SP.POP.TOTL?downloadformat=csv"
 
 COVID_DIR = "covid"
+COVID_STATE_FILE = "covid.state"
 COVID_REPO = "https://github.com/CSSEGISandData/COVID-19.git"
 COVID_DAILY_REPORTS_DIR = "csse_covid_19_data/csse_covid_19_daily_reports"
 
@@ -19,14 +20,15 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 def covid_update():
     now = datetime.datetime.now()
-    last_update_file = os.path.join(DATA_DIR, "covid.last_update")
-    if os.path.exists(last_update_file):
-        with open(last_update_file, "r") as fp:
-            last_update = datetime.datetime.fromisoformat(fp.read())
-        if now - last_update < datetime.timedelta(seconds=3600):
-            return
+    state_file = os.path.join(DATA_DIR, COVID_STATE_FILE)
 
     if os.path.exists(os.path.join(DATA_DIR, COVID_DIR)):
+        if os.path.exists(state_file):
+            with open(state_file, "r") as fp:
+                last_update = datetime.datetime.fromisoformat(fp.read())
+            if now - last_update < datetime.timedelta(seconds=3600):
+                return
+
         subprocess.call(
             ["git", "pull", "--rebase", "origin", "master"],
             cwd=os.path.join(DATA_DIR, COVID_DIR),
@@ -34,7 +36,7 @@ def covid_update():
     else:
         subprocess.call(["git", "clone", COVID_REPO, COVID_DIR], cwd=DATA_DIR)
 
-    with open(last_update_file, "w") as fp:
+    with open(state_file, "w") as fp:
         fp.write(str(now))
 
 
