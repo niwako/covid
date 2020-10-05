@@ -39,6 +39,7 @@ def read_covid_csv(csv_file):
 
 @cache(ttl=3600)
 def covid():
+    print("Retrieving covid data...")
     fetch.covid_update()
     dfs = [read_covid_csv(csv_file) for csv_file in fetch.covid_csv_files()]
 
@@ -81,6 +82,7 @@ def covid():
 
 @cache()
 def population():
+    print("Retrieving population data...")
     df = pd.read_csv(fetch.population_csv_file(), skiprows=2, header=1)
     df = df[df.columns[:-1]]
     df = df.rename({"Country Name": "country_region", "2019": "population"}, axis=1)
@@ -117,6 +119,7 @@ def population():
 
 @cache()
 def flags():
+    print("Retrieving flag data...")
     resp = requests.get(
         "https://raw.githubusercontent.com/hjnilsson/country-flags/master/countries.json"
     )
