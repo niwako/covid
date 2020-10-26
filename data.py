@@ -204,8 +204,6 @@ def flag_url(country_code):
 
 @contextlib.contextmanager
 def sqlite():
-    if not os.path.exists(COVID_SQLITE):
-        etl()
     with sqlite3.connect(COVID_SQLITE) as con:
         yield con
 
