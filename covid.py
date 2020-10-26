@@ -5,6 +5,43 @@ import streamlit as st
 import data
 
 
+@st.cache(ttl=3600)
+def last_update():
+    with data.sqlite() as con:
+        return pd.read_sql("SELECT max(last_update) FROM covid", con)
+
+
+@st.cache(ttl=3600)
+def latest_covid_by_country():
+    with data.sqlite() as con:
+        return pd.read_sql(
+            """
+            WITH
+                max_date AS (
+                    SELECT max(file_date) AS file_date
+                    FROM covid
+                ),
+                covid_by_country AS (
+                    SELECT
+                        country_region,
+                        file_date,
+                        sum(confirmed) AS confirmed,
+                        sum(deaths) AS deaths,
+                        sum(recovered) AS recovered,
+                        sum(active) AS active
+                    FROM covid
+                    JOIN max_date USING (file_date)
+                    GROUP BY country_region, file_date
+                )
+            SELECT *
+            FROM covid_by_country
+            JOIN population USING (country_region)
+            JOIN flags USING (country_region)
+            """,
+            con,
+        )
+
+
 def flag_header(iso_3166, header):
     """Streamlit function to display some header text along with a country flag.
 
@@ -23,21 +60,18 @@ def flag_header(iso_3166, header):
     )
 
 
-cdf = data.covid()
-wdf = data.covid_by_country()
-
 """
 # Covid Data
 """
 
-ldf = wdf[(wdf.file_date == max(wdf.file_date))]
+ldf = latest_covid_by_country()
 
 confirmed = ldf.confirmed.sum()
 recovered = ldf.recovered.sum()
 deaths = ldf.deaths.sum()
 
 f"""
-Last updated {humanize.naturaltime(max(cdf.last_update))}.
+Last updated {humanize.naturaltime(last_update())}.
 
 ## Worldwide
 

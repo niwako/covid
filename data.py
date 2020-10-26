@@ -1,10 +1,26 @@
+#!/usr/bin/env python3
+import contextlib
+import datetime
+import glob
 import os
+import sqlite3
+import subprocess
 
 import pandas as pd
 import requests
-import streamlit as st
 
-import fetch
+DATA_DIR = "data"
+
+POP_DIR = os.path.join(DATA_DIR, "population")
+POP_ZIP = "population.zip"
+POP_URL = "http://api.worldbank.org/v2/en/indicator/SP.POP.TOTL?downloadformat=csv"
+
+COVID_DIR = "covid"
+COVID_STATE_FILE = "covid.state"
+COVID_REPO = "https://github.com/CSSEGISandData/COVID-19.git"
+COVID_DAILY_REPORTS_DIR = "csse_covid_19_data/csse_covid_19_daily_reports"
+
+COVID_SQLITE = os.path.join(DATA_DIR, "covid.sqlite")
 
 INTEGER_COLUMNS = ["confirmed", "deaths", "recovered", "active"]
 
@@ -18,15 +34,35 @@ COVID_COLUMN_REMAP = {
 }
 
 
-def cache(*args, **kwargs):
-    def decorator(func):
-        try:
-            __IPYTHON__  # type: ignore
-            return func
-        except NameError:
-            return st.cache(func, *args, **kwargs)
+os.makedirs(DATA_DIR, exist_ok=True)
 
-    return decorator
+
+def covid_update(force=False, timeout=5400):
+    now = datetime.datetime.now()
+    state_file = os.path.join(DATA_DIR, COVID_STATE_FILE)
+
+    if os.path.exists(os.path.join(DATA_DIR, COVID_DIR)):
+        if not force and os.path.exists(state_file):
+            with open(state_file, "r") as fp:
+                last_update = datetime.datetime.fromisoformat(fp.read())
+            if now - last_update < datetime.timedelta(seconds=timeout):
+                return
+
+        subprocess.call(
+            ["git", "pull", "--rebase", "origin", "master"],
+            cwd=os.path.join(DATA_DIR, COVID_DIR),
+        )
+    else:
+        subprocess.call(["git", "clone", COVID_REPO, COVID_DIR], cwd=DATA_DIR)
+
+    with open(state_file, "w") as fp:
+        fp.write(str(now))
+
+
+def covid_csv_files():
+    return glob.glob(
+        os.path.join(DATA_DIR, COVID_DIR, COVID_DAILY_REPORTS_DIR, "*.csv")
+    )
 
 
 def read_covid_csv(csv_file):
@@ -37,10 +73,9 @@ def read_covid_csv(csv_file):
     return df
 
 
-@cache(ttl=3600)
 def covid():
-    fetch.covid_update()
-    dfs = [read_covid_csv(csv_file) for csv_file in fetch.covid_csv_files()]
+    covid_update()
+    dfs = [read_covid_csv(csv_file) for csv_file in covid_csv_files()]
 
     df = pd.concat(dfs)
     df = df.sort_values(["File_Date", "Country_Region", "Province_State"])
@@ -79,9 +114,24 @@ def covid():
     return df
 
 
-@cache()
+def population_csv_files():
+    return glob.glob(os.path.join(POP_DIR, "API_SP.POP.TOTL*.csv"))
+
+
+def population_update():
+    os.makedirs(POP_DIR, exist_ok=True)
+    subprocess.call(["curl", POP_URL, "-o", POP_ZIP], cwd=POP_DIR)
+    subprocess.call(["unzip", "-u", POP_ZIP], cwd=POP_DIR)
+
+
+def population_csv_file():
+    if len(population_csv_files()) == 0:
+        population_update()
+    return population_csv_files()[0]
+
+
 def population():
-    df = pd.read_csv(fetch.population_csv_file(), skiprows=2, header=1)
+    df = pd.read_csv(population_csv_file(), skiprows=2, header=1)
     df = df[df.columns[:-1]]
     df = df.rename({"Country Name": "country_region", "2019": "population"}, axis=1)
     df = df[["country_region", "population"]]
@@ -115,7 +165,6 @@ def population():
     return df
 
 
-@cache()
 def flags():
     resp = requests.get(
         "https://raw.githubusercontent.com/hjnilsson/country-flags/master/countries.json"
@@ -153,13 +202,24 @@ def flag_url(country_code):
     return f"https://raw.githubusercontent.com/hjnilsson/country-flags/master/svg/{country_code.lower()}.svg"
 
 
-@cache(ttl=3600)
-def covid_by_country():
-    covid_df = covid()
-    pop_df = population()
-    flags_df = flags()
-    df = covid_df.groupby(["country_region", "file_date"])[INTEGER_COLUMNS].sum()
-    df = df.reset_index()
-    df = pd.merge(df, pop_df, on="country_region")
-    df = pd.merge(df, flags_df, on="country_region")
-    return df
+@contextlib.contextmanager
+def sqlite():
+    if not os.path.exists(COVID_SQLITE):
+        etl()
+    with sqlite3.connect(COVID_SQLITE) as con:
+        yield con
+
+
+def etl():
+    cdf = covid()
+    pdf = population()
+    fdf = flags()
+
+    with sqlite() as con:
+        cdf.to_sql("covid", con, if_exists="replace", index=False)
+        pdf.to_sql("population", con, if_exists="replace", index=False)
+        fdf.to_sql("flags", con, if_exists="replace", index=False)
+
+
+if __name__ == "__main__":
+    etl()
