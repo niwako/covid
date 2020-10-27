@@ -8,7 +8,12 @@ import data
 @st.cache(ttl=3600)
 def last_update():
     with data.sqlite() as con:
-        return pd.read_sql("SELECT max(last_update) FROM covid", con)
+        df = pd.read_sql(
+            "SELECT max(last_update) AS last_update FROM covid",
+            con,
+            parse_dates=["last_update"],
+        )
+        return df.iloc[0].last_update
 
 
 @st.cache(ttl=3600)
@@ -39,6 +44,7 @@ def latest_covid_by_country():
             JOIN flags USING (country_region)
             """,
             con,
+            parse_dates=["file_date"],
         )
 
 

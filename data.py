@@ -22,18 +22,6 @@ COVID_DAILY_REPORTS_DIR = "csse_covid_19_data/csse_covid_19_daily_reports"
 
 COVID_SQLITE = os.path.join(DATA_DIR, "covid.sqlite")
 
-INTEGER_COLUMNS = ["confirmed", "deaths", "recovered", "active"]
-
-COVID_COLUMN_REMAP = {
-    "Province/State": "Province_State",
-    "Country/Region": "Country_Region",
-    "Last Update": "Last_Update",
-    "Lat": "Latitude",
-    "Long_": "Longitude",
-    "Case-Fatality_Ratio": "Case_Fatality_Ratio",
-}
-
-
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
@@ -67,23 +55,37 @@ def covid_csv_files():
 
 def read_covid_csv(csv_file):
     df = pd.read_csv(csv_file)
-    df = df.rename(COVID_COLUMN_REMAP, axis=1)
-    df["Last_Update"] = pd.to_datetime(df.Last_Update)
-    df["File_Date"] = pd.to_datetime(os.path.split(csv_file)[-1].split(".")[0])
-    return df
-
-
-def covid():
-    covid_update()
-    dfs = [read_covid_csv(csv_file) for csv_file in covid_csv_files()]
-
-    df = pd.concat(dfs)
-    df = df.sort_values(["File_Date", "Country_Region", "Province_State"])
-    df = df.reset_index(drop=True)
+    df = df.rename(
+        {
+            "Province/State": "Province_State",
+            "Country/Region": "Country_Region",
+            "Last Update": "Last_Update",
+            "Lat": "Latitude",
+            "Long_": "Longitude",
+            "Case-Fatality_Ratio": "Case_Fatality_Ratio",
+        },
+        axis=1,
+    )
 
     df.columns = [s.lower() for s in df.columns]
-    for int_col in INTEGER_COLUMNS:
-        df[int_col] = df[int_col].fillna(0).astype("int")
+    df["last_update"] = pd.to_datetime(df.last_update)
+    df["file_date"] = pd.to_datetime(os.path.split(csv_file)[-1].split(".")[0])
+
+    prev_len = len(df)
+    pk = ["file_date", "country_region", "province_state"]
+    if "admin2" in df:
+        pk.append("admin2")
+    df = df.drop_duplicates(subset=pk)
+    new_len = len(df)
+    if new_len != prev_len:
+        print(f"Warning: Dropped {prev_len - new_len} rows while processing {csv_file}")
+
+    for int_col in ["confirmed", "deaths", "recovered", "active"]:
+        if int_col in df:
+            df[int_col] = df[int_col].fillna(0).astype("int")
+        else:
+            df[int_col] = 0
+
     df["country_region"] = df["country_region"].replace(
         {
             "Bahamas, The": "Bahamas",
@@ -111,6 +113,18 @@ def covid():
             "Viet Nam": "Vietnam",
         }
     )
+
+    return df
+
+
+def covid():
+    covid_update()
+    dfs = [read_covid_csv(csv_file) for csv_file in covid_csv_files()]
+
+    df = pd.concat(dfs)
+    df = df.sort_values(["file_date", "country_region", "province_state"])
+    df = df.reset_index(drop=True)
+
     return df
 
 
@@ -209,14 +223,50 @@ def sqlite():
 
 
 def etl():
-    cdf = covid()
+    covid_update()
+
     pdf = population()
     fdf = flags()
 
     with sqlite() as con:
-        cdf.to_sql("covid", con, if_exists="replace", index=False)
         pdf.to_sql("population", con, if_exists="replace", index=False)
         fdf.to_sql("flags", con, if_exists="replace", index=False)
+
+        con.execute(
+            """
+            CREATE TABLE IF NOT EXISTS covid (
+                file_date TIMESTAMP NOT NULL,
+                country_region TEXT NOT NULL,
+                province_state TEXT,
+                admin2 TEXT,
+                last_update TIMESTAMP NOT NULL,
+                confirmed INTEGER NOT NULL,
+                deaths INTEGER NOT NULL,
+                recovered INTEGER NOT NULL,
+                active INTEGER NOT NULL,
+                fips INTEGER,
+                latitude REAL,
+                longitude REAL,
+                combined_key TEXT,
+                incidence_rate REAL,
+                case_fatality_ratio REAL,
+                PRIMARY KEY (file_date, country_region, province_state, admin2)
+            )"""
+        )
+
+        loaded = set(
+            pd.read_sql(
+                "SELECT DISTINCT file_date FROM covid", con, parse_dates=["file_date"]
+            ).file_date
+        )
+        for csv_file in covid_csv_files():
+            file_date = datetime.datetime.strptime(
+                os.path.split(csv_file)[-1].split(".")[0], r"%m-%d-%Y"
+            )
+            if file_date not in loaded:
+                print(f"Loading {csv_file}")
+                df = read_covid_csv(csv_file)
+                df.to_sql("covid", con, if_exists="append", index=False)
 
 
 if __name__ == "__main__":
