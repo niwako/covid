@@ -1,5 +1,6 @@
+from datetime import datetime, timezone
+
 import humanize
-import pandas as pd
 import streamlit as st
 
 import data
@@ -23,21 +24,19 @@ def flag_header(iso_3166, header):
     )
 
 
-cdf = data.covid()
-wdf = data.covid_by_country()
-
 """
 # Covid Data
 """
 
-ldf = wdf[(wdf.file_date == max(wdf.file_date))]
+now = datetime.now(timezone.utc)
+ldf = data.latest_covid_by_country()
 
 confirmed = ldf.confirmed.sum()
 recovered = ldf.recovered.sum()
 deaths = ldf.deaths.sum()
 
 f"""
-Last updated {humanize.naturaltime(max(cdf.last_update))}.
+Last updated {humanize.naturaltime(data.last_update(), when=now)}.
 
 ## Worldwide
 
