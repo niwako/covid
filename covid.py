@@ -1,50 +1,9 @@
 from datetime import datetime, timezone
 
-import pytz
 import humanize
-import pandas as pd
 import streamlit as st
 
 import data
-
-
-@st.cache(ttl=3600)
-def last_update():
-    with data.sqlite() as con:
-        dt = next(con.execute("SELECT max(last_update) FROM covid"))[0]
-        return datetime.fromisoformat(dt).replace(tzinfo=timezone.utc)
-
-
-@st.cache(ttl=3600)
-def latest_covid_by_country():
-    with data.sqlite() as con:
-        return pd.read_sql(
-            """
-            WITH
-                max_date AS (
-                    SELECT max(file_date) AS file_date
-                    FROM covid
-                ),
-                covid_by_country AS (
-                    SELECT
-                        country_region,
-                        file_date,
-                        sum(confirmed) AS confirmed,
-                        sum(deaths) AS deaths,
-                        sum(recovered) AS recovered,
-                        sum(active) AS active
-                    FROM covid
-                    JOIN max_date USING (file_date)
-                    GROUP BY country_region, file_date
-                )
-            SELECT *
-            FROM covid_by_country
-            JOIN population USING (country_region)
-            JOIN flags USING (country_region)
-            """,
-            con,
-            parse_dates=["file_date"],
-        )
 
 
 def flag_header(iso_3166, header):
@@ -70,14 +29,14 @@ def flag_header(iso_3166, header):
 """
 
 now = datetime.now(timezone.utc)
-ldf = latest_covid_by_country()
+ldf = data.latest_covid_by_country()
 
 confirmed = ldf.confirmed.sum()
 recovered = ldf.recovered.sum()
 deaths = ldf.deaths.sum()
 
 f"""
-Last updated {humanize.naturaltime(last_update(), when=now)}.
+Last updated {humanize.naturaltime(data.last_update(), when=now)}.
 
 ## Worldwide
 
