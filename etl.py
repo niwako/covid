@@ -50,6 +50,7 @@ def read_covid_csv(csv_file):
             "Lat": "Latitude",
             "Long_": "Longitude",
             "Case-Fatality_Ratio": "Case_Fatality_Ratio",
+            "Incidence_Rate": "Incident_Rate",
         },
         axis=1,
     )
@@ -124,7 +125,7 @@ def covid():
                 latitude REAL,
                 longitude REAL,
                 combined_key TEXT,
-                incidence_rate REAL,
+                incident_rate REAL,
                 case_fatality_ratio REAL,
                 PRIMARY KEY (file_date, country_region, province_state, admin2)
             )"""
