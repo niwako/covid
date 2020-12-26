@@ -1,6 +1,9 @@
 # Generated data
 data/
 
+# Visual Studio Code
+.vscode/
+
 # Jupyter notebooks
 *.ipynb
 
